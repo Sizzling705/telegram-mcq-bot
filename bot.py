@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # Apne BotFather se mile Token ko yahan quotes ke andar daalein
-BOT_TOKEN = "8800485717:AAFrOp5ej_KNrvLmMr-8jlM2mqwBXIjy8xM"
+BOT_TOKEN = "8800485717:AAEt1QiGXpkUvYpt7_1fZm3shwefNHIzl4Q"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Welcome! Bulk MCQs add karne ke liye Web App open karein.")
