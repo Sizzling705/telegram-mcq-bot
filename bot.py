@@ -12,8 +12,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # --- DATABASE SETUP ---
 def get_db_connection():
-    conn = sqlite3.connect('mcqs.db')
-    return conn
+    return sqlite3.connect('mcqs.db')
 
 def init_db():
     conn = get_db_connection()
@@ -55,18 +54,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         raw_data = update.message.web_app_data.data
+        logging.info(f"RAW DATA: {raw_data}")
+        
         mcq_list = json.loads(raw_data)
         total = len(mcq_list)
         
-        option_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+        option_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3, '1': 0, '2': 1, '3': 2, '4': 3}
         
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        status_msg = await update.message.reply_text(f"📥 Received {total} MCQs! Processing Quizzes, Please wait...")
+        await update.message.reply_text(f"📥 Received {total} MCQs! Processing & Saving...")
 
         saved_count = 0
         for mcq in mcq_list:
+            # Flexible field extraction (handles compressed keys or full keys)
             q = mcq.get('q') or mcq.get('question')
             opts = mcq.get('o') or mcq.get('options')
             ans_raw = mcq.get('a') or mcq.get('answer')
@@ -74,42 +76,41 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if not q or not opts or len(opts) < 4:
                 continue
 
-            ans_letter = str(ans_raw).strip().upper() if ans_raw else 'A'
-            correct_idx = option_map.get(ans_letter, 0)
+            ans_str = str(ans_raw).strip().upper() if ans_raw is not None else 'A'
+            correct_idx = option_map.get(ans_str, 0)
 
             # 1. Database me Save
             cursor.execute('''
                 INSERT INTO mcqs (question, option_a, option_b, option_c, option_d, correct_option)
                 VALUES (?, ?, ?, ?, ?, ?)
-            ''', (q, opts[0], opts[1], opts[2], opts[3], correct_idx))
+            ''', (str(q), str(opts[0]), str(opts[1]), str(opts[2]), str(opts[3]), correct_idx))
             saved_count += 1
 
             # 2. Anonymous Quiz Poll Send
             try:
                 await context.bot.send_poll(
                     chat_id=update.effective_chat.id,
-                    question=q,
-                    options=opts,
+                    question=str(q)[:300],  # Telegram max length guard
+                    options=[str(opt)[:100] for opt in opts[:4]],
                     type='quiz',
                     correct_option_id=correct_idx,
                     is_anonymous=True
                 )
             except Exception as poll_err:
                 logging.error(f"Poll Error: {poll_err}")
-                await asyncio.sleep(3) # Retry delay if limit hits
+                await asyncio.sleep(2)
 
-            # 1.2 second delay per poll (Telegram Rate limit safety)
-            await asyncio.sleep(1.2)
+            await asyncio.sleep(1.2) # Rate limit safety
 
         conn.commit()
         conn.close()
 
-        # Success Confirmation
-        await update.message.reply_text(f"✅ Success! Total **{saved_count}** MCQs Database me save aur post ho chuke hain.\n\n`/count` bhej kar check karein.", parse_mode="Markdown")
+        # Success message
+        await update.message.reply_text(f"✅ Successful! **{saved_count}** MCQs Database me save aur post ho gaye hain.", parse_mode="Markdown")
 
     except Exception as e:
-        logging.error(f"Error processing WebApp data: {e}")
-        await update.message.reply_text(f"❌ Error: {e}")
+        logging.error(f"Error in handle_webapp_data: {e}")
+        await update.message.reply_text(f"❌ Error aaya: {e}")
 
 async def count_mcqs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = get_db_connection()
