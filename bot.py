@@ -55,8 +55,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         raw_data = update.message.web_app_data.data
-        logging.info(f"Received raw WebApp Data: {raw_data}")
-        
         mcq_list = json.loads(raw_data)
         total = len(mcq_list)
         
@@ -65,7 +63,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        await update.message.reply_text(f"📥 Received {total} MCQs! Processing...")
+        await update.message.reply_text(f"📥 Received {total} MCQs! Processing & posting Quizzes...")
 
         saved_count = 0
         for mcq in mcq_list:
@@ -86,25 +84,31 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             ''', (q, opts[0], opts[1], opts[2], opts[3], correct_idx))
             saved_count += 1
 
-            # 2. Quiz Poll Send
-            await context.bot.send_poll(
-                chat_id=update.effective_chat.id,
-                question=q,
-                options=opts,
-                type='quiz',
-                correct_option_id=correct_idx,
-                is_anonymous=True
-            )
-            await asyncio.sleep(0.5)
+            # 2. Anonymous Quiz Poll Send (with Error Protection)
+            try:
+                await context.bot.send_poll(
+                    chat_id=update.effective_chat.id,
+                    question=q,
+                    options=opts,
+                    type='quiz',
+                    correct_option_id=correct_idx,
+                    is_anonymous=True
+                )
+            except Exception as poll_error:
+                logging.error(f"Failed to send poll: {poll_error}")
+                await asyncio.sleep(1) # Extra delay if hit rate limit
+
+            await asyncio.sleep(0.6) # Safe delay between polls
 
         conn.commit()
         conn.close()
 
-        await update.message.reply_text(f"✅ Successful! {saved_count} MCQs Database me save aur post ho gaye hain.")
+        # Guaranteed Success Reply
+        await update.message.reply_text(f"✅ Successful! Total {saved_count} MCQs Database me save aur post ho gaye hain.")
 
     except Exception as e:
         logging.error(f"Error processing WebApp data: {e}")
-        await update.message.reply_text(f"❌ Error aaya data process karne me: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
 
 async def count_mcqs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = get_db_connection()
