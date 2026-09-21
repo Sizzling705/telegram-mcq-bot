@@ -46,7 +46,7 @@ def run_dummy_server():
 BOT_TOKEN = "8800485717:AAEt1QiGXpkUvYpt7_1fZm3shwefNHIzl4Q"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Welcome! Bulk MCQs add karne ke liye Web App open karein ya `/quiz` bhej kar test start karein.")
+    await update.message.reply_text("👋 Welcome! Bulk MCQs add karne ke liye Web App open karein, `/count` se total questions dekhein ya `/quiz` se test lein.")
 
 async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     raw_data = update.message.web_app_data.data
@@ -58,12 +58,15 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn = sqlite3.connect('mcqs.db')
     cursor = conn.cursor()
 
-    await update.message.reply_text(f"📥 Received {total} MCQs! Anonymous Quiz Polls generate ho rahe hain...")
+    await update.message.reply_text(f"📥 Received {total} MCQs! Saving to Database & posting Anonymous Quizzes...")
 
     for mcq in mcq_list:
-        q = mcq['question']
-        opts = mcq['options']
-        ans_letter = mcq['answer'].strip().upper()
+        # Key shortening compatibility (q, o, a) OR standard keys
+        q = mcq.get('q') or mcq.get('question')
+        opts = mcq.get('o') or mcq.get('options')
+        ans_raw = mcq.get('a') or mcq.get('answer')
+        
+        ans_letter = str(ans_raw).strip().upper()
         correct_idx = option_map.get(ans_letter, 0)
 
         # 1. Database me save karein
@@ -72,21 +75,30 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (q, opts[0], opts[1], opts[2], opts[3], correct_idx))
 
-        # 2. Anonymous Quiz Poll Send karein (Exact Image Format)
+        # 2. Anonymous Quiz Poll Send karein
         await context.bot.send_poll(
             chat_id=update.effective_chat.id,
             question=q,
             options=opts,
             type='quiz',
             correct_option_id=correct_idx,
-            is_anonymous=True  # Image wala Anonymous Quiz Mode
+            is_anonymous=True
         )
         await asyncio.sleep(0.5)
 
     conn.commit()
     conn.close()
 
-    await update.message.reply_text(f"✅ Successful! Sabhi {total} MCQs Anonymous Quiz Poll format me post ho gaye hain.")
+    await update.message.reply_text(f"✅ Successful! Sabhi {total} MCQs Quiz format me post aur save ho gaye hain.")
+
+async def count_mcqs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    conn = sqlite3.connect('mcqs.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM mcqs')
+    total = cursor.fetchone()[0]
+    conn.close()
+
+    await update.message.reply_text(f"📊 **Database Status:**\nTotal uploaded MCQs: **{total}**", parse_mode="Markdown")
 
 async def send_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect('mcqs.db')
@@ -114,6 +126,7 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("quiz", send_quiz))
+    app.add_handler(CommandHandler("count", count_mcqs))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
     
     app.run_polling()
