@@ -58,7 +58,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
     conn = sqlite3.connect('mcqs.db')
     cursor = conn.cursor()
 
-    await update.message.reply_text(f"📥 Received {total} MCQs! Database me save aur Quiz Polls generate ho rahe hain...")
+    await update.message.reply_text(f"📥 Received {total} MCQs! Anonymous Quiz Polls generate ho rahe hain...")
 
     for mcq in mcq_list:
         q = mcq['question']
@@ -72,21 +72,21 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (q, opts[0], opts[1], opts[2], opts[3], correct_idx))
 
-        # 2. Telegram Native Quiz Poll Send karein
+        # 2. Anonymous Quiz Poll Send karein (Exact Image Format)
         await context.bot.send_poll(
             chat_id=update.effective_chat.id,
             question=q,
             options=opts,
             type='quiz',
             correct_option_id=correct_idx,
-            is_anonymous=False
+            is_anonymous=True  # Image wala Anonymous Quiz Mode
         )
-        await asyncio.sleep(0.5) # Rate limiting delay
+        await asyncio.sleep(0.5)
 
     conn.commit()
     conn.close()
 
-    await update.message.reply_text(f"✅ Successful! Sabhi {total} MCQs Quiz format me post ho gaye hain aur database me save ho chuke hain.")
+    await update.message.reply_text(f"✅ Successful! Sabhi {total} MCQs Anonymous Quiz Poll format me post ho gaye hain.")
 
 async def send_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect('mcqs.db')
@@ -103,7 +103,7 @@ async def send_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             options=[a, b, c, d],
             type='quiz',
             correct_option_id=correct_idx,
-            is_anonymous=False
+            is_anonymous=True
         )
     else:
         await update.message.reply_text("Abhi database me koi MCQs nahi hain. Pehle Web App se add karein!")
