@@ -63,7 +63,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        await update.message.reply_text(f"📥 Received {total} MCQs! Processing & posting Quizzes...")
+        status_msg = await update.message.reply_text(f"📥 Received {total} MCQs! Processing Quizzes, Please wait...")
 
         saved_count = 0
         for mcq in mcq_list:
@@ -84,7 +84,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             ''', (q, opts[0], opts[1], opts[2], opts[3], correct_idx))
             saved_count += 1
 
-            # 2. Anonymous Quiz Poll Send (with Error Protection)
+            # 2. Anonymous Quiz Poll Send
             try:
                 await context.bot.send_poll(
                     chat_id=update.effective_chat.id,
@@ -94,17 +94,18 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     correct_option_id=correct_idx,
                     is_anonymous=True
                 )
-            except Exception as poll_error:
-                logging.error(f"Failed to send poll: {poll_error}")
-                await asyncio.sleep(1) # Extra delay if hit rate limit
+            except Exception as poll_err:
+                logging.error(f"Poll Error: {poll_err}")
+                await asyncio.sleep(3) # Retry delay if limit hits
 
-            await asyncio.sleep(0.6) # Safe delay between polls
+            # 1.2 second delay per poll (Telegram Rate limit safety)
+            await asyncio.sleep(1.2)
 
         conn.commit()
         conn.close()
 
-        # Guaranteed Success Reply
-        await update.message.reply_text(f"✅ Successful! Total {saved_count} MCQs Database me save aur post ho gaye hain.")
+        # Success Confirmation
+        await update.message.reply_text(f"✅ Success! Total **{saved_count}** MCQs Database me save aur post ho chuke hain.\n\n`/count` bhej kar check karein.", parse_mode="Markdown")
 
     except Exception as e:
         logging.error(f"Error processing WebApp data: {e}")
